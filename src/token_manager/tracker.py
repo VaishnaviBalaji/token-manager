@@ -152,7 +152,7 @@ class TokenTracker:
             except Exception as exc:
                 logger.warning("Cloud ingest failed (non-fatal): %s", exc)
 
-        t = threading.Thread(target=_send, daemon=True)
+        t = threading.Thread(target=_send, daemon=False)
         t.start()
 
     def _get_preview(self, messages: list[dict]) -> str:
