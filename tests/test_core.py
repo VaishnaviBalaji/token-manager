@@ -15,12 +15,16 @@ TEST_DB = Path("test_token_manager.db")
 
 @pytest.fixture(autouse=True)
 def clean_db():
-    if TEST_DB.exists():
-        TEST_DB.unlink()
+    try:
+        TEST_DB.unlink(missing_ok=True)
+    except PermissionError:
+        pass
     storage.init_db(TEST_DB)
     yield
-    if TEST_DB.exists():
-        TEST_DB.unlink()
+    try:
+        TEST_DB.unlink(missing_ok=True)
+    except PermissionError:
+        pass
 
 
 # ------------------------------------------------------------------

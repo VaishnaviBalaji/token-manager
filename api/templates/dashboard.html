@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Token Manager</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    :root { --indigo:#6366f1; --green:#10b981; --amber:#f59e0b; --red:#ef4444; }
+    body { background:#f1f5f9; font-family:'Segoe UI',system-ui,sans-serif; }
+
+    /* ── Auth screen ── */
+    #auth-screen {
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(135deg,#1e1b4b 0%,#312e81 60%,#4338ca 100%);
+    }
+    .auth-card {
+      background:#fff; border-radius:16px; padding:2.5rem;
+      width:100%; max-width:420px; box-shadow:0 20px 60px rgba(0,0,0,.3);
+    }
+    .auth-logo { font-size:2rem; font-weight:800; color:#1e1b4b; letter-spacing:-.04em; }
+    .auth-tagline { font-size:.8rem; color:#94a3b8; margin-bottom:2rem; }
+    .nav-tabs .nav-link { color:#64748b; border:none; padding:.5rem 1.25rem; font-weight:500; }
+    .nav-tabs .nav-link.active { color:#6366f1; border-bottom:2px solid #6366f1; background:none; }
+    .btn-primary { background:#6366f1; border-color:#6366f1; }
+    .btn-primary:hover { background:#4f46e5; border-color:#4f46e5; }
+    #auth-error { display:none; }
+
+    /* ── App screen ── */
+    #app-screen { display:none; }
+    .navbar { background:#1e1b4b; padding:.75rem 1.5rem; }
+    .navbar-brand { color:#fff !important; font-weight:700; font-size:1.05rem; }
+    .tagline { font-size:.72rem; color:#a5b4fc; font-weight:400; margin-left:.4rem; }
+    .user-pill { background:rgba(255,255,255,.1); border-radius:20px; padding:.25rem .75rem;
+                 color:#e0e7ff; font-size:.8rem; cursor:pointer; }
+    #last-updated { font-size:.72rem; color:#a5b4fc; }
+
+    .card { border:none; border-radius:14px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+    .stat-card { background:#fff; padding:1.5rem; }
+    .stat-card .label { font-size:.68rem; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; }
+    .stat-card .value { font-size:1.9rem; font-weight:700; line-height:1.1; }
+    .stat-card .sub { font-size:.72rem; color:#cbd5e1; margin-top:.2rem; }
+    .stat-card .icon { font-size:1.4rem; opacity:.12; position:absolute; right:1.25rem; top:1.25rem; }
+
+    .chart-card, .sessions-card { background:#fff; padding:1.25rem 1.5rem; }
+    .section-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.07em; color:#64748b; font-weight:600; }
+
+    .table th { font-size:.68rem; text-transform:uppercase; letter-spacing:.07em; color:#94a3b8; font-weight:600; border-bottom-width:1px; }
+    .table td { font-size:.875rem; vertical-align:middle; }
+    .budget-bar { height:6px; border-radius:3px; background:#e2e8f0; overflow:hidden; min-width:90px; }
+    .budget-bar-fill { height:100%; border-radius:3px; transition:width .4s; }
+
+    /* API key panel */
+    .key-panel { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:1rem 1.25rem; }
+    .key-display { font-family:monospace; font-size:.82rem; color:#1e1b4b; background:#fff;
+                   border:1px solid #e2e8f0; border-radius:6px; padding:.4rem .75rem;
+                   word-break:break-all; }
+    .empty-state { padding:3rem; text-align:center; color:#94a3b8; }
+    .empty-state .icon { font-size:2.5rem; margin-bottom:.75rem; }
+
+    #alert-banner { display:none; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════ AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">💰 Token Manager</div>
+    <div class="auth-tagline">Tokens are the new currency of intelligence</div>
+
+    <ul class="nav nav-tabs mb-4" id="auth-tabs">
+      <li class="nav-item">
+        <button class="nav-link active" onclick="switchTab('login')">Sign In</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" onclick="switchTab('register')">Create Account</button>
+      </li>
+    </ul>
+
+    <div id="auth-error" class="alert alert-danger py-2 small mb-3"></div>
+
+    <!-- Login -->
+    <form id="login-form" onsubmit="doLogin(event)">
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Email</label>
+        <input type="email" class="form-control" id="login-email" placeholder="you@example.com" required>
+      </div>
+      <div class="mb-4">
+        <label class="form-label small fw-semibold">Password</label>
+        <input type="password" class="form-control" id="login-password" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-100 fw-semibold" id="login-btn">Sign In</button>
+    </form>
+
+    <!-- Register -->
+    <form id="register-form" style="display:none" onsubmit="doRegister(event)">
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Email</label>
+        <input type="email" class="form-control" id="reg-email" placeholder="you@example.com" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Password <span class="text-muted fw-normal">(min 8 chars)</span></label>
+        <input type="password" class="form-control" id="reg-password" placeholder="••••••••" required minlength="8">
+      </div>
+      <div class="mb-4">
+        <label class="form-label small fw-semibold">Confirm Password</label>
+        <input type="password" class="form-control" id="reg-confirm" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-100 fw-semibold" id="register-btn">Create Account</button>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ APP SCREEN -->
+<div id="app-screen">
+
+  <nav class="navbar">
+    <div class="d-flex align-items-center gap-3 w-100">
+      <span class="navbar-brand">💰 Token Manager<span class="tagline">Tokens are the new currency of intelligence</span></span>
+      <div class="ms-auto d-flex align-items-center gap-3">
+        <span id="last-updated"></span>
+        <button class="btn btn-sm btn-outline-light" onclick="loadAll()">↻ Refresh</button>
+        <button class="btn btn-sm" style="background:#6366f1;color:#fff" onclick="seedDemo()">Load Demo Data</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="clearData()">Clear Data</button>
+        <span class="user-pill" onclick="showApiKey()" title="View your SDK key">🔑 <span id="nav-email"></span></span>
+        <button class="btn btn-sm btn-outline-light" onclick="logout()">Sign Out</button>
+      </div>
+    </div>
+  </nav>
+
+  <div id="alert-banner" class="alert alert-warning alert-dismissible m-3 mb-0 py-2" role="alert">
+    ⚠ <strong>Budget Alert —</strong> <span id="alert-text"></span>
+    <button type="button" class="btn-close btn-sm" onclick="this.closest('#alert-banner').style.display='none'"></button>
+  </div>
+
+  <div class="container-fluid px-4 py-4">
+
+    <!-- SDK API Key panel -->
+    <div id="apikey-panel" class="key-panel mb-4" style="display:none">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="section-label">Your SDK API Key</span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="copyKey()">Copy</button>
+      </div>
+      <div class="key-display" id="key-display"></div>
+      <div class="mt-2 small text-muted">
+        Use this in your code: <code>TokenTracker(tm_key="<span id="key-hint"></span>")</code><br>
+        Keep it secret — anyone with this key can write data to your account.
+      </div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="card stat-card position-relative">
+          <div class="icon">💵</div>
+          <div class="label">Total Spend</div>
+          <div class="value" style="color:var(--indigo)" id="stat-cost">—</div>
+          <div class="sub" id="stat-cost-sub"></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card stat-card position-relative">
+          <div class="icon">🔢</div>
+          <div class="label">Total Tokens</div>
+          <div class="value" style="color:var(--green)" id="stat-tokens">—</div>
+          <div class="sub" id="stat-tokens-sub"></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card stat-card position-relative">
+          <div class="icon">🗂</div>
+          <div class="label">Sessions</div>
+          <div class="value" style="color:var(--amber)" id="stat-sessions">—</div>
+          <div class="sub">active pipelines</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card stat-card position-relative">
+          <div class="icon">📡</div>
+          <div class="label">API Calls</div>
+          <div class="value" style="color:var(--red)" id="stat-calls">—</div>
+          <div class="sub">total requests</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-8">
+        <div class="card chart-card">
+          <div class="section-label mb-3">Spend &amp; Tokens — Last 7 Days</div>
+          <canvas id="spend-chart" height="100"></canvas>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card chart-card">
+          <div class="section-label mb-3">Cost by Model</div>
+          <canvas id="model-chart" height="100"></canvas>
+          <div id="model-legend" class="mt-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sessions table -->
+    <div class="card sessions-card">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="section-label mb-0">Sessions</div>
+        <small class="text-muted">Auto-refreshes every 30s</small>
+      </div>
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Session ID</th>
+            <th>Calls</th>
+            <th>Tokens</th>
+            <th>Cost</th>
+            <th>Budget</th>
+            <th>Last Active</th>
+          </tr>
+        </thead>
+        <tbody id="sessions-tbody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div><!-- /app-screen -->
+
+<script>
+  // ── State ──────────────────────────────────────────────────────
+  let currentUser = null;
+  let spendChart, modelChart;
+  const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'];
+
+  // ── Formatters ──────────────────────────────────────────────────
+  const fmtCost  = v => '$' + Number(v).toFixed(4);
+  const fmtNum   = v => Number(v).toLocaleString();
+  const shortMod = m => m.replace('claude-','').replace('-20251001','');
+  const timeAgo  = ts => {
+    const s = Math.floor((Date.now() - new Date(ts + 'Z')) / 1000);
+    if (s < 60)    return s + 's ago';
+    if (s < 3600)  return Math.floor(s/60) + 'm ago';
+    if (s < 86400) return Math.floor(s/3600) + 'h ago';
+    return Math.floor(s/86400) + 'd ago';
+  };
+
+  // ── Auth helpers ────────────────────────────────────────────────
+  const getToken = () => localStorage.getItem('tm_token');
+  const authHeaders = () => ({ 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' });
+  const authFetch = (url, opts = {}) =>
+    fetch(url, { ...opts, headers: { ...authHeaders(), ...(opts.headers||{}) } });
+
+  // ── Routing ─────────────────────────────────────────────────────
+  async function init() {
+    const token = getToken();
+    if (!token) { showAuth(); return; }
+
+    const r = await fetch('/auth/me', { headers: authHeaders() });
+    if (!r.ok) { localStorage.clear(); showAuth(); return; }
+
+    currentUser = await r.json();
+    showApp();
+    loadAll();
+  }
+
+  function showAuth() {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('app-screen').style.display  = 'none';
+  }
+
+  function showApp() {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display  = 'block';
+    document.getElementById('nav-email').textContent = currentUser.email;
+    document.getElementById('key-display').textContent = currentUser.tm_api_key;
+    document.getElementById('key-hint').textContent    = currentUser.tm_api_key.slice(0,18) + '...';
+  }
+
+  function logout() {
+    localStorage.clear();
+    currentUser = null;
+    showAuth();
+  }
+
+  // ── Auth tab switching ───────────────────────────────────────────
+  function switchTab(tab) {
+    const tabs = document.querySelectorAll('#auth-tabs .nav-link');
+    tabs.forEach((t,i) => t.classList.toggle('active', (i===0) === (tab==='login')));
+    document.getElementById('login-form').style.display    = tab==='login'    ? '' : 'none';
+    document.getElementById('register-form').style.display = tab==='register' ? '' : 'none';
+    hideAuthError();
+  }
+
+  function showAuthError(msg) {
+    const el = document.getElementById('auth-error');
+    el.textContent = msg; el.style.display = 'block';
+  }
+  function hideAuthError() {
+    document.getElementById('auth-error').style.display = 'none';
+  }
+
+  // ── Register ────────────────────────────────────────────────────
+  async function doRegister(e) {
+    e.preventDefault(); hideAuthError();
+    const email    = document.getElementById('reg-email').value;
+    const password = document.getElementById('reg-password').value;
+    const confirm  = document.getElementById('reg-confirm').value;
+
+    if (password !== confirm) { showAuthError('Passwords do not match'); return; }
+
+    const btn = document.getElementById('register-btn');
+    btn.disabled = true; btn.textContent = 'Creating account…';
+
+    const r = await fetch('/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await r.json();
+    btn.disabled = false; btn.textContent = 'Create Account';
+
+    if (!r.ok) { showAuthError(data.detail || 'Registration failed'); return; }
+
+    localStorage.setItem('tm_token', data.access_token);
+    currentUser = { email: data.email, tm_api_key: data.tm_api_key };
+    showApp(); loadAll();
+  }
+
+  // ── Login ───────────────────────────────────────────────────────
+  async function doLogin(e) {
+    e.preventDefault(); hideAuthError();
+    const email    = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+
+    const btn = document.getElementById('login-btn');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+
+    const r = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await r.json();
+    btn.disabled = false; btn.textContent = 'Sign In';
+
+    if (!r.ok) { showAuthError(data.detail || 'Login failed'); return; }
+
+    localStorage.setItem('tm_token', data.access_token);
+    currentUser = { email: data.email, tm_api_key: data.tm_api_key };
+    showApp(); loadAll();
+  }
+
+  // ── API key panel ────────────────────────────────────────────────
+  function showApiKey() {
+    const p = document.getElementById('apikey-panel');
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  }
+  function copyKey() {
+    navigator.clipboard.writeText(currentUser.tm_api_key);
+    const btn = event.target;
+    btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 1500);
+  }
+
+  // ── Data loading ─────────────────────────────────────────────────
+  async function loadStats() {
+    const d = await authFetch('/stats').then(r => r.json());
+    document.getElementById('stat-cost').textContent     = fmtCost(d.total_cost_usd);
+    document.getElementById('stat-tokens').textContent   = fmtNum(d.total_tokens);
+    document.getElementById('stat-sessions').textContent = d.sessions_count;
+    document.getElementById('stat-calls').textContent    = fmtNum(d.total_calls);
+    document.getElementById('stat-cost-sub').textContent = d.total_calls + ' calls';
+    document.getElementById('stat-tokens-sub').textContent = (d.by_model.length || 0) + ' model(s)';
+    renderSpendChart(d.by_day);
+    renderModelChart(d.by_model);
+  }
+
+  async function loadSessions() {
+    document.getElementById('alert-banner').style.display = 'none';
+    const sessions = await authFetch('/sessions').then(r => r.json());
+    const tbody = document.getElementById('sessions-tbody');
+
+    if (!sessions.length) {
+      tbody.innerHTML = `<tr><td colspan="6">
+        <div class="empty-state">
+          <div class="icon">📭</div>
+          No data yet — <button class="btn btn-sm btn-primary" onclick="seedDemo()">Load Demo Data</button>
+          or make a real API call using your SDK key.
+        </div></td></tr>`;
+      return;
+    }
+
+    const budgets = await Promise.all(
+      sessions.map(s =>
+        authFetch(`/sessions/${s.session_id}/budget`).then(r => r.json()).catch(() => null)
+      )
+    );
+
+    const alerts = [];
+    tbody.innerHTML = sessions.map((s, i) => {
+      const b = budgets[i];
+      let budgetHtml = '<span class="text-muted small">—</span>';
+
+      if (b && b.cost_limit_usd) {
+        const pct = Math.min((b.cost_pct || 0) * 100, 100);
+        const color = b.budget_exceeded ? 'var(--red)' : b.alert_triggered ? 'var(--amber)' : 'var(--green)';
+        const badge = b.budget_exceeded
+          ? '<span class="badge bg-danger ms-1 small">Over</span>'
+          : b.alert_triggered ? '<span class="badge bg-warning text-dark ms-1 small">Alert</span>' : '';
+        budgetHtml = `
+          <div class="d-flex align-items-center gap-2">
+            <div class="budget-bar flex-grow-1"><div class="budget-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+            <small>${pct.toFixed(0)}%</small>${badge}
+          </div>
+          <small class="text-muted">${fmtCost(b.cost_used_usd)} / ${fmtCost(b.cost_limit_usd)}</small>`;
+        if (b.alert_triggered || b.budget_exceeded)
+          alerts.push(`${s.session_id} at ${(b.cost_pct*100).toFixed(0)}% of $${b.cost_limit_usd}`);
+      }
+
+      return `<tr>
+        <td><code class="small text-primary">${s.session_id}</code></td>
+        <td>${s.call_count}</td>
+        <td>${fmtNum(s.total_tokens)}</td>
+        <td class="fw-semibold">${fmtCost(s.total_cost_usd)}</td>
+        <td style="min-width:160px">${budgetHtml}</td>
+        <td class="text-muted small">${timeAgo(s.last_call)}</td>
+      </tr>`;
+    }).join('');
+
+    if (alerts.length) {
+      document.getElementById('alert-text').textContent = alerts.join(' · ');
+      document.getElementById('alert-banner').style.display = 'block';
+    }
+  }
+
+  // ── Charts ───────────────────────────────────────────────────────
+  function renderSpendChart(byDay) {
+    const ctx = document.getElementById('spend-chart').getContext('2d');
+    if (spendChart) spendChart.destroy();
+    if (!byDay.length) return;
+
+    spendChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: byDay.map(d => d.date),
+        datasets: [
+          { label:'Cost (USD)', data:byDay.map(d=>d.cost), borderColor:'#6366f1',
+            backgroundColor:'rgba(99,102,241,0.1)', tension:.4, fill:true, pointRadius:4, yAxisID:'yCost' },
+          { label:'Tokens (K)', data:byDay.map(d=>+(d.tokens/1000).toFixed(1)), borderColor:'#10b981',
+            backgroundColor:'rgba(16,185,129,0.07)', tension:.4, fill:true, pointRadius:4, yAxisID:'yTok' },
+        ],
+      },
+      options: {
+        responsive:true, interaction:{ mode:'index', intersect:false },
+        plugins:{ legend:{ position:'top', labels:{ boxWidth:12 } } },
+        scales: {
+          yCost:{ type:'linear', position:'left',  beginAtZero:true, ticks:{ callback:v=>'$'+v.toFixed(3) } },
+          yTok: { type:'linear', position:'right', beginAtZero:true, grid:{ drawOnChartArea:false }, ticks:{ callback:v=>v+'K' } },
+        },
+      },
+    });
+  }
+
+  function renderModelChart(byModel) {
+    const ctx = document.getElementById('model-chart').getContext('2d');
+    if (modelChart) { modelChart.destroy(); modelChart = null; }
+    document.getElementById('model-legend').innerHTML = '';
+    if (!byModel.length) return;
+
+    modelChart = new Chart(ctx, {
+      type:'doughnut',
+      data: {
+        labels: byModel.map(m=>shortMod(m.model)),
+        datasets:[{ data:byModel.map(m=>m.cost), backgroundColor:COLORS, borderWidth:2 }],
+      },
+      options:{ responsive:true, cutout:'65%', plugins:{ legend:{ display:false } } },
+    });
+
+    document.getElementById('model-legend').innerHTML = byModel.map((m,i)=>`
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span style="width:10px;height:10px;border-radius:2px;background:${COLORS[i]};display:inline-block;flex-shrink:0"></span>
+        <span class="small text-muted flex-grow-1">${shortMod(m.model)}</span>
+        <span class="small fw-semibold">${fmtCost(m.cost)}</span>
+      </div>`).join('');
+  }
+
+  // ── Actions ──────────────────────────────────────────────────────
+  async function seedDemo() {
+    await authFetch('/demo/seed', { method:'POST' });
+    await loadAll();
+  }
+
+  async function clearData() {
+    if (!confirm('Delete all your tracking data? This cannot be undone.')) return;
+    await authFetch('/data', { method:'DELETE' });
+    await loadAll();
+  }
+
+  async function loadAll() {
+    await Promise.all([loadStats(), loadSessions()]);
+    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────
+  init();
+  setInterval(() => { if (currentUser) loadAll(); }, 5000);
+</script>
+</body>
+</html>
