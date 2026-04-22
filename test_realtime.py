@@ -20,7 +20,7 @@ tracker = TokenTracker(
     agent_name="smoke-test",
     api_key=anthropic_key,
     tm_key=tm_key,
-    ingest_url="http://127.0.0.1:8002/ingest",
+    ingest_url="https://token-manager-production-4f5b.up.railway.app/ingest",
 )
 
 print("Making a real API call...")
@@ -34,4 +34,4 @@ print("Response:", response.content[0].text)
 print()
 print(tracker.summary())
 print()
-print("Check your dashboard at http://127.0.0.1:8002 — the call should appear within 5 seconds.")
+print("Check your dashboard at https://token-manager-production-4f5b.up.railway.app — the call should appear within 5 seconds.")
