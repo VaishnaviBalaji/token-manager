@@ -1,24 +1,31 @@
 """
-Quick smoke-test: makes one real Anthropic API call and sends it to your dashboard.
+Quick smoke-test — verifies real-time tracking is working.
+
+Your Anthropic key is read from the ANTHROPIC_API_KEY environment variable.
+Token Manager never sees your Anthropic key — only token counts and cost.
 
 Usage:
-    python test_realtime.py <tm-key> <anthropic-api-key>
+    # Set your Anthropic key once in your environment:
+    export ANTHROPIC_API_KEY=sk-ant-...        # Mac/Linux
+    set ANTHROPIC_API_KEY=sk-ant-...           # Windows cmd
+    $env:ANTHROPIC_API_KEY="sk-ant-..."        # Windows PowerShell
+
+    # Then run (only your sk-tm- key goes here):
+    python test_realtime.py sk-tm-YOUR_TM_KEY
 """
 import sys
-import os
 from src.token_manager import TokenTracker
 
-if len(sys.argv) < 3:
-    print("Usage: python test_realtime.py sk-tm-YOUR_TM_KEY sk-ant-YOUR_ANTHROPIC_KEY")
+if len(sys.argv) < 2:
+    print("Usage: python test_realtime.py sk-tm-YOUR_TM_KEY")
+    print("Set ANTHROPIC_API_KEY in your environment separately.")
     sys.exit(1)
 
-tm_key      = sys.argv[1]
-anthropic_key = sys.argv[2]
+tm_key = sys.argv[1]
 
 tracker = TokenTracker(
     session_id="my-first-real-session",
     agent_name="smoke-test",
-    api_key=anthropic_key,
     tm_key=tm_key,
     ingest_url="https://token-manager-production-4f5b.up.railway.app/ingest",
 )
@@ -34,4 +41,4 @@ print("Response:", response.content[0].text)
 print()
 print(tracker.summary())
 print()
-print("Check your dashboard at https://token-manager-production-4f5b.up.railway.app — the call should appear within 5 seconds.")
+print("Check your dashboard at https://token-manager-production-4f5b.up.railway.app")

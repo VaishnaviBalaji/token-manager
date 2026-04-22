@@ -124,6 +124,7 @@
         <button class="btn btn-sm btn-outline-light" onclick="loadAll()">↻ Refresh</button>
         <button class="btn btn-sm" style="background:#6366f1;color:#fff" onclick="seedDemo()">Load Demo Data</button>
         <button class="btn btn-sm btn-outline-danger" onclick="clearData()">Clear Data</button>
+        <button class="btn btn-sm btn-outline-light" onclick="showSetup()">Setup Guide</button>
         <span class="user-pill" onclick="showApiKey()" title="View your SDK key">🔑 <span id="nav-email"></span></span>
         <button class="btn btn-sm btn-outline-light" onclick="logout()">Sign Out</button>
       </div>
@@ -225,6 +226,50 @@
     </div>
 
   </div>
+<!-- Setup Guide Modal -->
+<div id="setup-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;overflow-y:auto">
+  <div style="max-width:560px;margin:3rem auto;background:#fff;border-radius:16px;padding:2rem">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h5 class="mb-0 fw-bold">Getting Started</h5>
+      <button class="btn-close" onclick="document.getElementById('setup-modal').style.display='none'"></button>
+    </div>
+
+    <div class="alert alert-success py-2 small mb-4">
+      ✅ Your Anthropic API key <strong>never leaves your machine.</strong>
+      Token Manager only receives token counts, model name, and cost — zero credentials.
+    </div>
+
+    <div class="mb-3">
+      <div class="section-label mb-2">Step 1 — Set your Anthropic key in your environment</div>
+      <pre class="bg-dark text-light p-3 rounded small" style="white-space:pre-wrap"># Mac / Linux
+export ANTHROPIC_API_KEY=sk-ant-your-key
+
+# Windows PowerShell
+$env:ANTHROPIC_API_KEY="sk-ant-your-key"</pre>
+      <div class="small text-muted mt-1">Your Anthropic key stays here. Token Manager never sees it.</div>
+    </div>
+
+    <div class="mb-3">
+      <div class="section-label mb-2">Step 2 — Install the SDK</div>
+      <pre class="bg-dark text-light p-3 rounded small">pip install anthropic</pre>
+    </div>
+
+    <div class="mb-3">
+      <div class="section-label mb-2">Step 3 — Wrap your API calls</div>
+      <pre id="setup-code" class="bg-dark text-light p-3 rounded small" style="white-space:pre-wrap"></pre>
+    </div>
+
+    <div class="mb-2">
+      <div class="section-label mb-2">Your SDK key</div>
+      <div class="d-flex gap-2">
+        <div class="key-display flex-grow-1" id="setup-key-display"></div>
+        <button class="btn btn-sm btn-outline-secondary" onclick="copySetupKey()">Copy</button>
+      </div>
+      <div class="small text-muted mt-1">This is the only key you share with Token Manager.</div>
+    </div>
+  </div>
+</div>
+
 </div><!-- /app-screen -->
 
 <script>
@@ -488,6 +533,34 @@
   async function seedDemo() {
     await authFetch('/demo/seed', { method:'POST' });
     await loadAll();
+  }
+
+  function showSetup() {
+    const key = currentUser.tm_api_key;
+    document.getElementById('setup-key-display').textContent = key;
+    document.getElementById('setup-code').textContent =
+`from src.token_manager import TokenTracker
+
+tracker = TokenTracker(
+    session_id="my-app",
+    agent_name="my-agent",
+    tm_key="${key}",
+    ingest_url="https://token-manager-production-4f5b.up.railway.app/ingest",
+)
+
+# Use exactly like anthropic.messages.create()
+response = tracker.create(
+    model="claude-haiku-4-5-20251001",
+    max_tokens=256,
+    messages=[{"role": "user", "content": "Hello!"}],
+)`;
+    document.getElementById('setup-modal').style.display = 'block';
+  }
+
+  function copySetupKey() {
+    navigator.clipboard.writeText(currentUser.tm_api_key);
+    const btn = event.target;
+    btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 1500);
   }
 
   async function clearData() {
